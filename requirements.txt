@@ -1,0 +1,12 @@
+pandas>=2.0
+openpyxl>=3.1
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+pyarrow>=15.0
+scikit-learn>=1.4
+mlflow>=2.10
+matplotlib>=3.8
+xgboost>=2.0
+jupyter>=1.0
+pytest>=8.0
