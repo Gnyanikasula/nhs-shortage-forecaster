@@ -49,7 +49,8 @@ def build_history_features(panel: pd.DataFrame) -> pd.DataFrame:
     # does BITWISE not (~True == -2, ~False == -1 -- both truthy!), not logical
     # not. Must force back to real bool dtype before negating, or this silently
     # returns "always True" and episode_start collapses to just on_concession.
-    prev_state_bool = prev_state.fillna(False).astype(bool)
+    # prev_state_bool = prev_state.fillna(False).astype(bool)
+    prev_state_bool = (prev_state == True)
     episode_start = df["on_concession"] & (~prev_state_bool)
     df["n_previous_episodes"] = episode_start.groupby(df["chemical"]).cumsum()
 
@@ -67,7 +68,8 @@ def build_history_features(panel: pd.DataFrame) -> pd.DataFrame:
     cum_onset = onset_shifted.groupby(df["chemical"]).cumsum()
 
     df["chemical_historical_onset_rate"] = cum_onset / cum_clear
-    df["n_prior_valid_transitions"] = cum_clear
+    # df["n_prior_valid_transitions"] = cum_clear
+    df["n_prior_valid_transitions"] = cum_clear.fillna(0)
 
     # ---- month of year (seasonality) ----
     df["month_of_year"] = df["month"].dt.month
