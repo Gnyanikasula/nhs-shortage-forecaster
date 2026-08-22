@@ -19,3 +19,20 @@ To rebuild them from scratch:
 
 5. Build the concession panel:
    `python src/features/build_panel.py`
+
+# hadoop/ (not committed — binary, Windows-only, regenerate locally)
+
+Required for PySpark to write files on Windows. Without this, Spark's
+Parquet writes fail with `UnsatisfiedLinkError` at the commit step.
+
+1. mkdir hadoop\bin
+2. Download winutils.exe and hadoop.dll for Hadoop 3.3.6 (closest trusted
+   match to PySpark 4.2.0's bundled Hadoop 3.5.0 -- confirmed compatible
+   in practice) from:
+   https://github.com/cdarlint/winutils/raw/master/hadoop-3.3.6/bin/winutils.exe
+   https://github.com/cdarlint/winutils/raw/master/hadoop-3.3.6/bin/hadoop.dll
+   into hadoop\bin\
+3. Set environment variables (User scope, permanent):
+   HADOOP_HOME = <repo path>\hadoop
+   Add <repo path>\hadoop\bin to PATH
+4. Fully restart your terminal/IDE (registry env var changes need a fresh process)
