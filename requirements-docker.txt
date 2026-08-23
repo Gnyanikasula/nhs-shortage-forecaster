@@ -1,0 +1,17 @@
+# Trimmed specifically for the Docker container -- the full requirements.txt
+# (used for local dev in the venv) includes Jupyter, matplotlib, and MLflow's
+# full web server, none of which a headless scheduled scoring job needs.
+# Real, unnecessary weight in the image that was likely contributing to the
+# disk-pressure error during image export.
+pandas==2.2.3
+numpy==1.26.4
+openpyxl==3.1.5
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.3.0
+pyarrow==17.0.0
+scikit-learn==1.5.2
+xgboost==2.1.2
+joblib==1.4.2
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.9

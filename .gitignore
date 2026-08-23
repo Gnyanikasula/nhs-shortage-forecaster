@@ -8,3 +8,4 @@ data/interim/
 data/processed/
 .env
 hadoop/
+data/
