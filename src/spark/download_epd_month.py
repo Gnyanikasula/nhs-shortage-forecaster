@@ -18,11 +18,20 @@ import requests
 
 HEADERS = {"User-Agent": "student-portfolio-project (contact: replace-with-your-email)"}
 
+# KNOWN_MONTH_URLS = {
+#     "202503": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/ea287041-1027-4062-9db9-040f48223b13/download/epd_snomed_202503.csv",
+#     "202504": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/a39bb2a2-189c-43ef-8783-2e77ccd794a0/download/epd_snomed_202504.csv",
+#     "202505": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/ede6bcf2-5d71-437f-a3fb-fc9817d7455c/download/epd_snomed_202505.csv",
+#     "202506": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/943c3b10-3999-475a-b6b7-d77e1fcf8e8a/download/epd_snomed_202506.csv",
+# }
+
 KNOWN_MONTH_URLS = {
     "202503": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/ea287041-1027-4062-9db9-040f48223b13/download/epd_snomed_202503.csv",
     "202504": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/a39bb2a2-189c-43ef-8783-2e77ccd794a0/download/epd_snomed_202504.csv",
     "202505": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/ede6bcf2-5d71-437f-a3fb-fc9817d7455c/download/epd_snomed_202505.csv",
     "202506": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/943c3b10-3999-475a-b6b7-d77e1fcf8e8a/download/epd_snomed_202506.csv",
+    "202507": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/a63c5618-2af4-479c-9ae1-a3227d620ceb/download/epd_snomed_202507.csv",
+    "202508": "https://opendata.nhsbsa.net/dataset/906115a6-4155-44be-8b81-f8e83cebfb84/resource/1200d488-d175-4fbd-827d-149ba65ea104/download/epd_snomed_202508.csv",
 }
 
 DEST_DIR = "data/raw/epd_bulk"
