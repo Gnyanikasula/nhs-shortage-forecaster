@@ -20,6 +20,7 @@ regenerate from source rather than persist what's cheap to rebuild.
 import os
 import sys
 from datetime import datetime
+import numpy as np
 
 import pandas as pd
 from sqlalchemy import select, insert, update
@@ -136,6 +137,12 @@ def score_and_log(engine, yyyymm: str):
     bundle = rebuilt["model_bundle"]
 
     month_ts = pd.to_datetime(yyyymm, format="%Y%m")
+    at_risk["time_since_last_concession_filled"] = at_risk["time_since_last_concession"].fillna(999)
+    at_risk["month_sin"] = np.sin(2 * np.pi * at_risk["month_of_year"] / 12)
+    at_risk["month_cos"] = np.cos(2 * np.pi * at_risk["month_of_year"] / 12)
+    at_risk["chemical_historical_onset_rate"] = at_risk["chemical_historical_onset_rate"].fillna(
+        bundle["fallback_historical_rate"]
+    )
     at_risk = features[(features["month"] == month_ts) & (~features["on_concession"])].copy()
 
     if len(at_risk) == 0:
