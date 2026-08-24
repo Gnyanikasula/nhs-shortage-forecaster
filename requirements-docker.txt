@@ -5,6 +5,13 @@
 # retrain metadata to it on every real run -- this is not optional weight,
 # it's a runtime dependency. streamlit removed -- dropped in favor of the
 # real HTML/CSS/JS frontend served by FastAPI.
+#
+# mlflow pinned to 3.15.1 specifically, matching the local venv exactly --
+# a version mismatch here caused a real production failure: the local venv
+# (3.15.1) created the MLflow tracking schema in Neon first, and Docker's
+# older pinned version (2.17.2) couldn't recognize that schema's Alembic
+# migration history, crashing the entire scoring run before any predictions
+# were logged.
 pandas==2.2.3
 numpy==1.26.4
 openpyxl==3.1.5
@@ -19,4 +26,4 @@ sqlalchemy==2.0.35
 psycopg2-binary==2.9.9
 fastapi==0.115.0
 uvicorn==0.32.0
-mlflow==2.17.2
+mlflow==3.15.1

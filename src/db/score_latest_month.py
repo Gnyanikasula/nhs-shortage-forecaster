@@ -96,10 +96,44 @@ def _generate_explanations(at_risk, feature_columns, model):
     return at_risk
 
 
-def score_latest_month(engine) -> int:
-    mlflow.set_tracking_uri(os.environ["DATABASE_URL"])
-    mlflow.set_experiment("nhs-shortage-production-retrain")
+def _log_to_mlflow(yyyymm, feature_columns, features, bundle, at_risk, n_explained):
+    """Isolated for the same reason as _generate_explanations: MLflow is
+    observability, not core functionality. A version mismatch between
+    environments, a Neon hiccup, or any other MLflow-side problem must
+    never prevent that day's predictions from being logged -- this is
+    called AFTER the core upsert has already succeeded, and any failure
+    here is caught and reported, never raised."""
+    try:
+        mlflow.set_tracking_uri(os.environ["DATABASE_URL"])
+        mlflow.set_experiment("nhs-shortage-production-retrain")
+        with mlflow.start_run(run_name=f"daily_score_{yyyymm}"):
+            mlflow.log_params({
+                "n_estimators": 100,
+                "max_depth": 3,
+                "learning_rate": 0.1,
+                "feature_columns": ",".join(feature_columns),
+            })
+            mlflow.log_metrics({
+                "training_rows": int(features["label_onset_next_month"].notna().sum()),
+                "onset_events": int(features["label_onset_next_month"].sum()),
+                "fallback_historical_rate": float(bundle["fallback_historical_rate"]),
+                "at_risk_scored": len(at_risk),
+                "explanations_generated": int(n_explained),
+            })
+        print(f"  Logged retrain metadata to MLflow (experiment: nhs-shortage-production-retrain).")
+    except Exception as e:
+        # A real failure hit this exact path once: a version mismatch
+        # between the local venv (which created the Neon MLflow schema)
+        # and an older pin in requirements-docker.txt crashed the ENTIRE
+        # scoring run before any predictions were logged. That's fixed
+        # at the version-pin level too, but this catch is the structural
+        # fix -- whatever goes wrong with MLflow going forward, it stays
+        # contained here.
+        print(f"  MLflow logging FAILED ({type(e).__name__}: {e}) -- predictions were already "
+              f"logged successfully above, this does not affect them.")
 
+
+def score_latest_month(engine) -> int:
     print(f"[{datetime.now()}] Rebuilding panel and scoring latest month...")
     rebuilt = rebuild_everything()
     features = rebuilt["features"]
@@ -159,21 +193,7 @@ def score_latest_month(engine) -> int:
 
     print(f"  Scored and logged {len(log_rows)} chemicals for {yyyymm} ({n_explained} with explanations).")
 
-    with mlflow.start_run(run_name=f"daily_score_{yyyymm}"):
-        mlflow.log_params({
-            "n_estimators": 100,
-            "max_depth": 3,
-            "learning_rate": 0.1,
-            "feature_columns": ",".join(feature_columns),
-        })
-        mlflow.log_metrics({
-            "training_rows": int(features["label_onset_next_month"].notna().sum()),
-            "onset_events": int(features["label_onset_next_month"].sum()),
-            "fallback_historical_rate": float(bundle["fallback_historical_rate"]),
-            "at_risk_scored": len(at_risk),
-            "explanations_generated": int(n_explained),
-        })
-    print(f"  Logged retrain metadata to MLflow (experiment: nhs-shortage-production-retrain).")
+    _log_to_mlflow(yyyymm, feature_columns, features, bundle, at_risk, n_explained)
 
     return len(log_rows)
 
