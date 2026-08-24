@@ -14,7 +14,8 @@ import sys
 from datetime import datetime
 
 import numpy as np
-from sqlalchemy import insert
+# from sqlalchemy import insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, THIS_DIR)
@@ -55,8 +56,19 @@ def score_latest_month(engine) -> int:
     log_rows = at_risk[["chemical", "phase1_production_score", "phase3_shadow_score"]].copy()
     log_rows["month"] = yyyymm
 
+    # with engine.begin() as conn:
+    #     conn.execute(insert(prediction_log), log_rows.to_dict(orient="records"))
     with engine.begin() as conn:
-        conn.execute(insert(prediction_log), log_rows.to_dict(orient="records"))
+        stmt = pg_insert(prediction_log).values(log_rows.to_dict(orient="records"))
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["chemical", "month"],
+            set_={
+                "phase1_production_score": stmt.excluded.phase1_production_score,
+                "phase3_shadow_score": stmt.excluded.phase3_shadow_score,
+                "scored_at": stmt.excluded.scored_at,
+            },
+        )
+        conn.execute(stmt)
 
     print(f"  Scored and logged {len(log_rows)} chemicals for {yyyymm}.")
     return len(log_rows)

@@ -1,14 +1,19 @@
 """
-FastAPI endpoint serving the current risk predictions from Postgres.
-Read-only -- this app never writes to the database, only the pipeline
-scripts do. Deliberately thin: no business logic here, just querying
-and shaping what's already been computed and logged.
+FastAPI endpoint serving the current risk predictions from Postgres, AND
+serving the static HTML/CSS/JS frontend from the same service (mounted
+at the end, after all API routes -- see the mount comment below for why
+order matters here).
+
+Read-only on the API side -- this app never writes to the database, only
+the pipeline scripts do. Deliberately thin: no business logic here, just
+querying and shaping what's already been computed and logged.
 """
 import os
 import sys
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, func
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -115,3 +120,12 @@ def stats():
         "latest_prediction_month": latest_prediction_month,
         "latest_outcome_month": latest_outcome_month,
     }
+
+
+# Mounted LAST, deliberately -- all API routes above are matched first
+# since they're registered earlier in Starlette's router. This mount
+# then catches everything else (/, /style.css, /script.js) and serves
+# the static frontend. html=True makes "/" resolve to index.html
+# automatically, same as a typical static-site server.
+FRONTEND_DIR = os.path.join(REPO_ROOT, "src", "frontend")
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

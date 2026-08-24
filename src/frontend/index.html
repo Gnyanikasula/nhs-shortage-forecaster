@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NHS Drug Shortage Early Warning System</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>NHS Drug Shortage Early Warning System</h1>
+    <p class="subtitle">
+      History-only XGBoost model, walk-forward validated (PR-AUC 0.096 vs 0.064 base rate).
+      Predicts probability of a chemical entering NHS price concession next month.
+    </p>
+  </header>
+
+  <section class="stats-row" id="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Ground-truth outcome rows</div>
+      <div class="stat-value" id="stat-outcomes">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Logged predictions</div>
+      <div class="stat-value" id="stat-predictions">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Latest scored month</div>
+      <div class="stat-value" id="stat-month">--</div>
+    </div>
+  </section>
+
+  <main>
+    <section class="panel">
+      <div class="panel-header">
+        <h2 id="risk-heading">Top risk chemicals</h2>
+        <label class="slider-label">
+          Show top
+          <input type="range" id="top-n-slider" min="5" max="50" value="20" />
+          <span id="top-n-value">20</span>
+        </label>
+      </div>
+
+      <div class="table-chart-grid">
+        <table id="risk-table">
+          <thead>
+            <tr><th>Chemical</th><th>Onset risk (next month)</th></tr>
+          </thead>
+          <tbody id="risk-table-body"></tbody>
+        </table>
+        <canvas id="risk-chart" height="300"></canvas>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Chemical concession history</h2>
+      <label class="select-label">
+        Select a chemical
+        <select id="chemical-select"></select>
+      </label>
+      <canvas id="history-chart" height="200"></canvas>
+      <p class="chart-caption">1 = on price concession that month, 0 = clear. Real historical data, not predicted.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Data sources: Community Pharmacy England (concession archive), NHSBSA (prescribing data).
+      Model retrained on every pipeline run from source data -- no persisted model file.
+      Served by FastAPI; this page fetches directly from the API's own endpoints.
+    </p>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>

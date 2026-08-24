@@ -23,7 +23,9 @@ from datetime import datetime
 import numpy as np
 
 import pandas as pd
-from sqlalchemy import select, insert, update
+# from sqlalchemy import select, insert, update
+from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(THIS_DIR))
@@ -157,8 +159,19 @@ def score_and_log(engine, yyyymm: str):
     log_rows = at_risk[["chemical", "phase1_production_score", "phase3_shadow_score"]].copy()
     log_rows["month"] = yyyymm
 
+    # with engine.begin() as conn:
+    #     conn.execute(insert(prediction_log), log_rows.to_dict(orient="records"))
     with engine.begin() as conn:
-        conn.execute(insert(prediction_log), log_rows.to_dict(orient="records"))
+        stmt = pg_insert(prediction_log).values(log_rows.to_dict(orient="records"))
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["chemical", "month"],
+            set_={
+                "phase1_production_score": stmt.excluded.phase1_production_score,
+                "phase3_shadow_score": stmt.excluded.phase3_shadow_score,
+                "scored_at": stmt.excluded.scored_at,
+            },
+        )
+        conn.execute(stmt)
     print(f"  Logged {len(log_rows)} predictions for {yyyymm} to Postgres.")
 
 
