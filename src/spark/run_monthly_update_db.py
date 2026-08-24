@@ -20,11 +20,10 @@ regenerate from source rather than persist what's cheap to rebuild.
 import os
 import sys
 from datetime import datetime
-import numpy as np
 
+import numpy as np
 import pandas as pd
-# from sqlalchemy import select, insert, update
-from sqlalchemy import select, update
+from sqlalchemy import select, update, insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -139,18 +138,19 @@ def score_and_log(engine, yyyymm: str):
     bundle = rebuilt["model_bundle"]
 
     month_ts = pd.to_datetime(yyyymm, format="%Y%m")
-    at_risk["time_since_last_concession_filled"] = at_risk["time_since_last_concession"].fillna(999)
-    at_risk["month_sin"] = np.sin(2 * np.pi * at_risk["month_of_year"] / 12)
-    at_risk["month_cos"] = np.cos(2 * np.pi * at_risk["month_of_year"] / 12)
-    at_risk["chemical_historical_onset_rate"] = at_risk["chemical_historical_onset_rate"].fillna(
-        bundle["fallback_historical_rate"]
-    )
     at_risk = features[(features["month"] == month_ts) & (~features["on_concession"])].copy()
 
     if len(at_risk) == 0:
         print(f"  No at-risk chemicals found for {yyyymm} in the freshly-rebuilt panel -- "
               f"does the concession archive actually cover this month yet?")
         return
+
+    at_risk["time_since_last_concession_filled"] = at_risk["time_since_last_concession"].fillna(999)
+    at_risk["month_sin"] = np.sin(2 * np.pi * at_risk["month_of_year"] / 12)
+    at_risk["month_cos"] = np.cos(2 * np.pi * at_risk["month_of_year"] / 12)
+    at_risk["chemical_historical_onset_rate"] = at_risk["chemical_historical_onset_rate"].fillna(
+        bundle["fallback_historical_rate"]
+    )
 
     X = at_risk[bundle["feature_columns"]]
     at_risk["phase1_production_score"] = bundle["model"].predict_proba(X)[:, 1]
@@ -159,8 +159,6 @@ def score_and_log(engine, yyyymm: str):
     log_rows = at_risk[["chemical", "phase1_production_score", "phase3_shadow_score"]].copy()
     log_rows["month"] = yyyymm
 
-    # with engine.begin() as conn:
-    #     conn.execute(insert(prediction_log), log_rows.to_dict(orient="records"))
     with engine.begin() as conn:
         stmt = pg_insert(prediction_log).values(log_rows.to_dict(orient="records"))
         stmt = stmt.on_conflict_do_update(
