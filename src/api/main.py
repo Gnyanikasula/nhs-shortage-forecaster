@@ -64,6 +64,19 @@ def latest_predictions(limit: int = Query(default=20, ge=1, le=377)):
             .limit(limit)
         ).fetchall()
 
+    # return {
+    #     "month": latest_month_row,
+    #     "n_returned": len(rows),
+    #     "predictions": [
+    #         {
+    #             "chemical": r.chemical,
+    #             "phase1_production_score": round(r.phase1_production_score, 4),
+    #             "phase3_shadow_score": r.phase3_shadow_score,
+    #             "scored_at": r.scored_at.isoformat() if r.scored_at else None,
+    #         }
+    #         for r in rows
+    #     ],
+    # }
     return {
         "month": latest_month_row,
         "n_returned": len(rows),
@@ -72,6 +85,10 @@ def latest_predictions(limit: int = Query(default=20, ge=1, le=377)):
                 "chemical": r.chemical,
                 "phase1_production_score": round(r.phase1_production_score, 4),
                 "phase3_shadow_score": r.phase3_shadow_score,
+                # Only populated for the top 10 by score each month (Phase 5) --
+                # null for everything else, not an error.
+                "explanation": r.explanation,
+                "explanation_method": r.explanation_method,
                 "scored_at": r.scored_at.isoformat() if r.scored_at else None,
             }
             for r in rows

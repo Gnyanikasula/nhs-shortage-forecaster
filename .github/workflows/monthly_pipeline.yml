@@ -17,15 +17,39 @@ jobs:
       - name: Build image
         run: docker build -t nhs-forecaster .
 
+      - name: Install Ollama on the runner
+        # Ollama runs on the RUNNER, not inside the Docker image -- keeps
+        # the image itself small, and the Phase 0 free-tier hosting
+        # decision means Ollama can never run on Render anyway (its free
+        # tier is 512MB RAM, a 3B model alone needs ~2GB). GitHub Actions
+        # gives a public repo 4 vCPU / 16GB RAM per job for free, which is
+        # comfortably enough for this in CPU mode.
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama and pull the model
+        run: |
+          ollama serve &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:11434 && break
+            sleep 1
+          done
+          ollama pull llama3.2:3b
+
       - name: Refresh ground-truth outcomes (cheap -- archive spreadsheet only, ~450KB)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: docker run --rm -e DATABASE_URL="$DATABASE_URL" nhs-forecaster python src/db/populate_actual_outcomes.py
 
-      - name: Score latest month (cheap, history-only model)
+      - name: Score latest month and generate explanations (history-only model + Ollama)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: docker run --rm -e DATABASE_URL="$DATABASE_URL" nhs-forecaster python src/db/score_latest_month.py
+        # --network host: the container needs to reach Ollama on the
+        # RUNNER's localhost:11434. Without this flag the container has
+        # its own isolated network namespace and localhost inside it
+        # means the container itself, not the host -- the call would
+        # just fail with connection refused, same as the very first
+        # local test before Ollama was actually running.
+        run: docker run --rm --network host -e DATABASE_URL="$DATABASE_URL" nhs-forecaster python src/db/score_latest_month.py
 
       - name: Check for / run the monthly EPD update (no-op on most days)
         env:
