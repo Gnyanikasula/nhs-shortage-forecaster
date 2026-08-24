@@ -43,6 +43,16 @@ epd_prescribing_features = Table(
 #     Column("phase3_shadow_score", Float, nullable=True),
 #     Column("scored_at", DateTime, server_default=func.now()),
 # )
+# prediction_log = Table(
+#     "prediction_log", metadata,
+#     Column("id", Integer, primary_key=True, autoincrement=True),
+#     Column("chemical", String, nullable=False),
+#     Column("month", String, nullable=False),
+#     Column("phase1_production_score", Float, nullable=True),
+#     Column("phase3_shadow_score", Float, nullable=True),
+#     Column("scored_at", DateTime, server_default=func.now(), onupdate=func.now()),
+#     UniqueConstraint("chemical", "month", name="uq_chem_prediction_month"),
+# )
 prediction_log = Table(
     "prediction_log", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
@@ -51,6 +61,8 @@ prediction_log = Table(
     Column("phase1_production_score", Float, nullable=True),
     Column("phase3_shadow_score", Float, nullable=True),
     Column("scored_at", DateTime, server_default=func.now(), onupdate=func.now()),
+    Column("explanation", String, nullable=True),
+    Column("explanation_method", String, nullable=True),
     UniqueConstraint("chemical", "month", name="uq_chem_prediction_month"),
 )
 
