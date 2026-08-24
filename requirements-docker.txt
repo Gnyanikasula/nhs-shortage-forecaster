@@ -1,8 +1,10 @@
 # Trimmed specifically for the Docker container -- the full requirements.txt
-# (used for local dev in the venv) includes Jupyter, matplotlib, and MLflow's
-# full web server, none of which a headless scheduled scoring job needs.
-# Real, unnecessary weight in the image that was likely contributing to the
-# disk-pressure error during image export.
+# (used for local dev in the venv) includes Jupyter and matplotlib, neither
+# of which a headless scheduled scoring job needs. MLflow IS included here
+# (unlike the original trim) because score_and_log() now logs production
+# retrain metadata to it on every real run -- this is not optional weight,
+# it's a runtime dependency. streamlit removed -- dropped in favor of the
+# real HTML/CSS/JS frontend served by FastAPI.
 pandas==2.2.3
 numpy==1.26.4
 openpyxl==3.1.5
@@ -17,4 +19,4 @@ sqlalchemy==2.0.35
 psycopg2-binary==2.9.9
 fastapi==0.115.0
 uvicorn==0.32.0
-streamlit==1.39.0
+mlflow==2.17.2

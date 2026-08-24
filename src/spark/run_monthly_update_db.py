@@ -23,7 +23,7 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import select, update, insert
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -121,9 +121,42 @@ def run_pipeline_for_month(engine, yyyymm: str, url: str):
             "BNF_CHEMICAL_SUBSTANCE": "bnf_chemical_substance",
             "YEAR_MONTH": "year_month",
         })
+
+        # The raw file's own YEAR_MONTH values are NOT trusted as the
+        # storage key -- NHSBSA's EPD exports have shown both "YYYYMM" and
+        # "YYYY-MM" across dataset generations (the same mismatch was
+        # already hit once in Phase 3, see combine_epd_features.py). We
+        # already know which month we asked for (yyyymm, from
+        # pipeline_state) -- use THAT as the canonical key, and use the raw
+        # column only to sanity-check we actually got the month we think we
+        # got, not to derive the key itself.
+        raw_year_months = set(result_pdf["year_month"].unique())
+        normalized = {ym.replace("-", "") for ym in raw_year_months}
+        if normalized != {yyyymm}:
+            raise RuntimeError(
+                f"Raw file's YEAR_MONTH values {raw_year_months} don't match "
+                f"the requested month {yyyymm} after normalization -- wrong "
+                f"URL configured, or an unexpected new source format. "
+                f"Stopping before writing anything; raw CSV NOT deleted."
+            )
+        result_pdf["year_month"] = yyyymm
+
+        # Upsert, not plain insert -- defense in depth so a retry after a
+        # transient failure (network blip, Postgres timeout mid-run) is
+        # safe instead of crashing on the unique constraint.
         with engine.begin() as conn:
-            conn.execute(insert(epd_prescribing_features), result_pdf.to_dict(orient="records"))
-        print(f"  Inserted {len(result_pdf)} chemical-month feature rows into Postgres.")
+            stmt = pg_insert(epd_prescribing_features).values(result_pdf.to_dict(orient="records"))
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["bnf_chemical_substance_code", "year_month"],
+                set_={
+                    "bnf_chemical_substance": stmt.excluded.bnf_chemical_substance,
+                    "total_items": stmt.excluded.total_items,
+                    "n_distinct_practices": stmt.excluded.n_distinct_practices,
+                    "hhi": stmt.excluded.hhi,
+                },
+            )
+            conn.execute(stmt)
+        print(f"  Upserted {len(result_pdf)} chemical-month feature rows into Postgres.")
 
         os.remove(raw_path)
         print(f"  Verified, deleted raw CSV.")
@@ -132,6 +165,16 @@ def run_pipeline_for_month(engine, yyyymm: str, url: str):
 
 
 def score_and_log(engine, yyyymm: str):
+    import mlflow
+
+    # Reuse the existing Neon Postgres as the MLflow tracking store --
+    # GitHub Actions runners are ephemeral, so a local ./mlruns folder
+    # would lose all history between scheduled runs. No new service, no
+    # new cost: MLflow creates its own tables in the same database the
+    # rest of the app already uses.
+    mlflow.set_tracking_uri(os.environ["DATABASE_URL"])
+    mlflow.set_experiment("nhs-shortage-production-retrain")
+
     print(f"  Rebuilding panel and model from source...")
     rebuilt = rebuild_everything()
     features = rebuilt["features"]
@@ -171,6 +214,21 @@ def score_and_log(engine, yyyymm: str):
         )
         conn.execute(stmt)
     print(f"  Logged {len(log_rows)} predictions for {yyyymm} to Postgres.")
+
+    with mlflow.start_run(run_name=f"retrain_{yyyymm}"):
+        mlflow.log_params({
+            "n_estimators": 100,
+            "max_depth": 3,
+            "learning_rate": 0.1,
+            "feature_columns": ",".join(bundle["feature_columns"]),
+        })
+        mlflow.log_metrics({
+            "training_rows": int(features["label_onset_next_month"].notna().sum()),
+            "onset_events": int(features["label_onset_next_month"].sum()),
+            "fallback_historical_rate": float(bundle["fallback_historical_rate"]),
+            "at_risk_scored_this_month": len(at_risk),
+        })
+    print(f"  Logged retrain metadata to MLflow (experiment: nhs-shortage-production-retrain).")
 
 
 def main():
