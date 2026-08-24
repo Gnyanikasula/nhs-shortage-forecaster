@@ -8,13 +8,20 @@ workflow invocation (seconds, not the 20+ minutes a real EPD month costs).
 This also seeds prediction_log with real data before the dashboard/API
 have anything meaningful to show -- without this, a fresh deployment
 would have an empty table and nothing to display.
+
+MLFLOW: this is the retrain path that actually fires every single day
+via the GitHub Actions cron (run_monthly_update_db.py's own retrain only
+fires on the rare day a new EPD month lands). Tracking is logged here,
+not just there, or the daily production retrain would go completely
+unrecorded. Uses the existing Neon Postgres as the MLflow tracking
+store -- GitHub Actions runners are ephemeral, so a local file-based
+store would lose all history between runs.
 """
 import os
 import sys
 from datetime import datetime
 
 import numpy as np
-# from sqlalchemy import insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,6 +32,11 @@ from rebuild_panel_from_source import rebuild_everything
 
 
 def score_latest_month(engine) -> int:
+    import mlflow
+
+    mlflow.set_tracking_uri(os.environ["DATABASE_URL"])
+    mlflow.set_experiment("nhs-shortage-production-retrain")
+
     print(f"[{datetime.now()}] Rebuilding panel and scoring latest month...")
     rebuilt = rebuild_everything()
     features = rebuilt["features"]
@@ -56,8 +68,6 @@ def score_latest_month(engine) -> int:
     log_rows = at_risk[["chemical", "phase1_production_score", "phase3_shadow_score"]].copy()
     log_rows["month"] = yyyymm
 
-    # with engine.begin() as conn:
-    #     conn.execute(insert(prediction_log), log_rows.to_dict(orient="records"))
     with engine.begin() as conn:
         stmt = pg_insert(prediction_log).values(log_rows.to_dict(orient="records"))
         stmt = stmt.on_conflict_do_update(
@@ -71,6 +81,22 @@ def score_latest_month(engine) -> int:
         conn.execute(stmt)
 
     print(f"  Scored and logged {len(log_rows)} chemicals for {yyyymm}.")
+
+    with mlflow.start_run(run_name=f"daily_score_{yyyymm}"):
+        mlflow.log_params({
+            "n_estimators": 100,
+            "max_depth": 3,
+            "learning_rate": 0.1,
+            "feature_columns": ",".join(bundle["feature_columns"]),
+        })
+        mlflow.log_metrics({
+            "training_rows": int(features["label_onset_next_month"].notna().sum()),
+            "onset_events": int(features["label_onset_next_month"].sum()),
+            "fallback_historical_rate": float(bundle["fallback_historical_rate"]),
+            "at_risk_scored": len(at_risk),
+        })
+    print(f"  Logged retrain metadata to MLflow (experiment: nhs-shortage-production-retrain).")
+
     return len(log_rows)
 
 
